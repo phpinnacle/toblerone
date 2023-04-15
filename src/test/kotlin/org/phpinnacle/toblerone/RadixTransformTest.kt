@@ -11,7 +11,7 @@ import java.util.*
 import kotlin.test.Test
 import kotlin.test.assertNull
 
-class RadixTransformTest {
+internal class RadixTransformTest {
     private val xformKey: RadixTransform<SourceRecord> = RadixTransform.Key()
     private val xformValue: RadixTransform<SourceRecord> = RadixTransform.Value()
 

@@ -11,7 +11,7 @@ import java.util.*
 import kotlin.test.Test
 import kotlin.test.assertNull
 
-class TrimTransformTest {
+internal class TrimTransformTest {
     private val xformKey: TrimTransform<SourceRecord> = TrimTransform.Key()
     private val xformValue: TrimTransform<SourceRecord> = TrimTransform.Value()
 

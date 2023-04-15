@@ -11,7 +11,7 @@ import java.util.*
 import kotlin.test.Test
 import kotlin.test.assertNull
 
-class SubstringTransformTest {
+internal class SubstringTransformTest {
     private val xformKey: SubstringTransform<SourceRecord> = SubstringTransform.Key()
     private val xformValue: SubstringTransform<SourceRecord> = SubstringTransform.Value()
 

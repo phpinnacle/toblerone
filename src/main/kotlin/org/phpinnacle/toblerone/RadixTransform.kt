@@ -43,17 +43,15 @@ abstract class RadixTransform<R : ConnectRecord<R>?> : Transformation<R> {
         ).filter { it.value != 0 }
     }
 
-    override fun apply(record: R): R {
-        return when {
-            operatingValue(record) == null -> {
-                record
-            }
-            operatingSchema(record) == null -> {
-                applySchemaless(record)
-            }
-            else -> {
-                applyWithSchema(record)
-            }
+    override fun apply(record: R): R = when {
+        operatingValue(record) == null -> {
+            record
+        }
+        operatingSchema(record) == null -> {
+            applySchemaless(record)
+        }
+        else -> {
+            applyWithSchema(record)
         }
     }
 
@@ -61,9 +59,7 @@ abstract class RadixTransform<R : ConnectRecord<R>?> : Transformation<R> {
     override fun close() {
     }
 
-    override fun config(): ConfigDef {
-        return CONFIG_DEF
-    }
+    override fun config(): ConfigDef = CONFIG_DEF
 
     protected abstract fun operatingSchema(record: R?): Schema?
     protected abstract fun operatingValue(record: R?): Any?

@@ -13,8 +13,8 @@ abstract class TrimTransform<R : ConnectRecord<R>?> : Transformation<R> {
         val OVERVIEW_DOC = (
             "Extracts parts of string fields or the entire key or value." +
             "Use the concrete transformation type designed for " +
-            "the record key (<code>" + RadixTransform.Key::class.java.getName() + "</code>) or " +
-            "the record value (<code>" + RadixTransform.Value::class.java.getName() + "</code>)."
+            "the record key (<code>" + Key::class.java.getName() + "</code>) or " +
+            "the record value (<code>" + Value::class.java.getName() + "</code>)."
         )
 
         val CONFIG_DEF: ConfigDef = ConfigDef().define(
@@ -35,19 +35,17 @@ abstract class TrimTransform<R : ConnectRecord<R>?> : Transformation<R> {
         fields = config.getList("fields").map { it.trim() }
     }
 
-    override fun apply(record: R): R {
-        return when {
-            operatingValue(record) == null -> {
-                record
-            }
+    override fun apply(record: R): R = when {
+        operatingValue(record) == null -> {
+            record
+        }
 
-            operatingSchema(record) == null -> {
-                applySchemaless(record)
-            }
+        operatingSchema(record) == null -> {
+            applySchemaless(record)
+        }
 
-            else -> {
-                applyWithSchema(record)
-            }
+        else -> {
+            applyWithSchema(record)
         }
     }
 
@@ -55,18 +53,20 @@ abstract class TrimTransform<R : ConnectRecord<R>?> : Transformation<R> {
     override fun close() {
     }
 
-    override fun config(): ConfigDef {
-        return CONFIG_DEF
-    }
+    override fun config(): ConfigDef = CONFIG_DEF
 
     protected abstract fun operatingSchema(record: R?): Schema?
     protected abstract fun operatingValue(record: R?): Any?
-    protected abstract fun newRecord(record: R?, updatedValue: Any?): R
+    protected abstract fun newRecord(record: R, updatedValue: Any?): R
 
     private fun applySchemaless(record: R): R {
         val value = Requirements.requireMap(operatingValue(record), PURPOSE)
         val output = value.mapValues {
-            if (it.key in fields && it.value is String) (it.value as String).trim() else it.value
+            if (it.key in fields && it.value is String) {
+                (it.value as String).trim()
+            } else {
+                it.value
+            }
         }
 
         return newRecord(record, output)
@@ -96,7 +96,7 @@ abstract class TrimTransform<R : ConnectRecord<R>?> : Transformation<R> {
 
         override fun operatingValue(record: R?): Any? = record?.key()
 
-        override fun newRecord(record: R?, updatedValue: Any?): R = record!!.newRecord(
+        override fun newRecord(record: R, updatedValue: Any?): R = record!!.newRecord(
             record.topic(),
             record.kafkaPartition(),
             record.keySchema(),
@@ -112,7 +112,7 @@ abstract class TrimTransform<R : ConnectRecord<R>?> : Transformation<R> {
 
         override fun operatingValue(record: R?): Any? = record?.value()
 
-        override fun newRecord(record: R?, updatedValue: Any?): R = record!!.newRecord(
+        override fun newRecord(record: R, updatedValue: Any?): R = record!!.newRecord(
             record.topic(),
             record.kafkaPartition(),
             record.keySchema(),

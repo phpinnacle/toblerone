@@ -13,8 +13,8 @@ abstract class SubstringTransform<R : ConnectRecord<R>?> : Transformation<R> {
         val OVERVIEW_DOC = (
             "Extracts parts of string fields or the entire key or value." +
             "Use the concrete transformation type designed for " +
-            "the record key (<code>" + RadixTransform.Key::class.java.getName() + "</code>) or " +
-            "the record value (<code>" + RadixTransform.Value::class.java.getName() + "</code>)."
+            "the record key (<code>" + Key::class.java.getName() + "</code>) or " +
+            "the record value (<code>" + Value::class.java.getName() + "</code>)."
         )
 
         val CONFIG_DEF: ConfigDef = ConfigDef().define(
@@ -37,17 +37,15 @@ abstract class SubstringTransform<R : ConnectRecord<R>?> : Transformation<R> {
         ).filter { it.value.isNotEmpty() }
     }
 
-    override fun apply(record: R): R {
-        return when {
-            operatingValue(record) == null -> {
-                record
-            }
-            operatingSchema(record) == null -> {
-                applySchemaless(record)
-            }
-            else -> {
-                applyWithSchema(record)
-            }
+    override fun apply(record: R): R = when {
+        operatingValue(record) == null -> {
+            record
+        }
+        operatingSchema(record) == null -> {
+            applySchemaless(record)
+        }
+        else -> {
+            applyWithSchema(record)
         }
     }
 
@@ -55,9 +53,7 @@ abstract class SubstringTransform<R : ConnectRecord<R>?> : Transformation<R> {
     override fun close() {
     }
 
-    override fun config(): ConfigDef {
-        return CONFIG_DEF
-    }
+    override fun config(): ConfigDef = CONFIG_DEF
 
     protected abstract fun operatingSchema(record: R?): Schema?
     protected abstract fun operatingValue(record: R?): Any?
