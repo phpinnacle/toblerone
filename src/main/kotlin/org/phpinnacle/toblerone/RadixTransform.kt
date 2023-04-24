@@ -1,5 +1,7 @@
 package org.phpinnacle.toblerone
 
+import org.apache.kafka.common.cache.LRUCache
+import org.apache.kafka.common.cache.SynchronizedCache
 import org.apache.kafka.common.config.ConfigDef
 import org.apache.kafka.connect.connector.ConnectRecord
 import org.apache.kafka.connect.data.Schema
@@ -30,6 +32,8 @@ abstract class RadixTransform<R : ConnectRecord<R>?> : Transformation<R> {
             )
 
         private const val PURPOSE = "base-convert-transform"
+
+        private val cache = SynchronizedCache(LRUCache<Schema, Schema>(16))
     }
 
     private lateinit var fields: Map<String, Int>
@@ -76,30 +80,20 @@ abstract class RadixTransform<R : ConnectRecord<R>?> : Transformation<R> {
         val value = Requirements.requireStruct(operatingValue(record), PURPOSE)
         val schema = operatingSchema(record) ?: return record
 
-        val outputValues = mutableMapOf<String, Any>()
-        val outputSchema = SchemaUtil.copySchemaBasics(schema)
+        val outputSchema = copySchema(schema)
+        val outputValues = Struct(outputSchema)
 
         for (field in schema.fields()) {
             val name = field.name()
 
-            if (name !in fields.keys) {
-                outputValues[name] = value.get(field)
-                outputSchema.field(name, field.schema())
-
-                continue
+            if (name in fields.keys) {
+                outputValues.put(name, convert(name, field.schema(), value))
+            } else {
+                outputValues.put(name, value.get(field))
             }
-
-            val (newSchema, newValue) = convert(name, field.schema(), value)
-
-            outputSchema.field(name, newSchema)
-            outputValues[name] = newValue
         }
 
-        val outputStruct = Struct(outputSchema)
-
-        outputValues.forEach { outputStruct.put(it.key, it.value) }
-
-        return newRecord(record, outputSchema.schema(), outputStruct)
+        return newRecord(record, outputSchema.schema(), outputValues)
     }
 
     private fun convert(key: String, value: Any): Any {
@@ -114,17 +108,53 @@ abstract class RadixTransform<R : ConnectRecord<R>?> : Transformation<R> {
         }
     }
 
-    private fun convert(key: String, schema: Schema, value: Struct): Pair<Schema, Any> {
-        val radix = fields[key] ?: return Pair(schema, value)
+    private fun convert(key: String, schema: Schema, value: Struct): Any {
+        val radix = fields[key] ?: return value
 
         return when (schema.type()) {
-            Schema.Type.INT8 -> Pair(Schema.STRING_SCHEMA, value.getInt16(key).toString(radix))
-            Schema.Type.INT16 -> Pair(Schema.STRING_SCHEMA, value.getInt16(key).toString(radix))
-            Schema.Type.INT32 -> Pair(Schema.STRING_SCHEMA, value.getInt32(key).toString(radix))
-            Schema.Type.INT64 -> Pair(Schema.STRING_SCHEMA, value.getInt64(key).toString(radix))
-            Schema.Type.STRING -> Pair(Schema.INT32_SCHEMA, value.getString(key).trim().toInt(radix))
-            else -> Pair(schema, value)
+            Schema.Type.INT8 -> value.getInt16(key).toString(radix)
+            Schema.Type.INT16 -> value.getInt16(key).toString(radix)
+            Schema.Type.INT32 -> value.getInt32(key).toString(radix)
+            Schema.Type.INT64 -> value.getInt64(key).toString(radix)
+            Schema.Type.STRING -> value.getString(key).trim().toInt(radix)
+            else -> value
         }
+    }
+
+    private fun infer(schema: Schema): Schema {
+        return when (schema.type()) {
+            Schema.Type.INT8 -> Schema.STRING_SCHEMA
+            Schema.Type.INT16 -> Schema.STRING_SCHEMA
+            Schema.Type.INT32 -> Schema.STRING_SCHEMA
+            Schema.Type.INT64 -> Schema.STRING_SCHEMA
+            Schema.Type.STRING -> Schema.INT32_SCHEMA
+            else -> schema
+        }
+    }
+
+    private fun copySchema(schema: Schema): Schema
+    {
+        val cached = cache.get(schema)
+
+        if (cached != null) {
+            return cached
+        }
+
+        val output = SchemaUtil.copySchemaBasics(schema)
+
+        for (field in schema.fields()) {
+            val name = field.name()
+
+            if (name in fields.keys) {
+                output.field(name, infer(field.schema()))
+            } else {
+                output.field(name, field.schema())
+            }
+        }
+
+        cache.put(schema, output)
+
+        return output
     }
 
     class Key<R : ConnectRecord<R>?> : RadixTransform<R>() {

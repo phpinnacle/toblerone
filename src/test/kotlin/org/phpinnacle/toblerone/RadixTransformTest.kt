@@ -57,20 +57,20 @@ internal class RadixTransformTest {
 
     @Test
     fun copyValueSchemaAndConvertFields() {
-        configure(xformValue, "int32:8,string:36")
+        configure(xformValue, "id:36")
 
         val schema = SchemaBuilder
             .struct()
             .name("name")
             .version(1)
             .doc("doc")
+            .field("id", Schema.STRING_SCHEMA)
             .field("int32", Schema.INT32_SCHEMA)
-            .field("string", Schema.STRING_SCHEMA)
             .build()
 
         val expected = Struct(schema)
+            .put("id", "  PJV  ")
             .put("int32", 42)
-            .put("string", "  PJV  ")
 
         val original = SourceRecord(null, null, "test", 0, schema, expected)
         val transformed: SourceRecord = xformValue.apply(original)
@@ -79,26 +79,26 @@ internal class RadixTransformTest {
         assertEquals(schema.version(), transformed.valueSchema().version())
         assertEquals(schema.doc(), transformed.valueSchema().doc())
 
-        assertEquals(Schema.STRING_SCHEMA, transformed.valueSchema().field("int32").schema())
-        assertEquals("52", (transformed.value() as Struct).getString("int32"))
+        assertEquals(Schema.INT32_SCHEMA, transformed.valueSchema().field("id").schema())
+        assertEquals(33115, (transformed.value() as Struct).getInt32("id"))
 
-        assertEquals(Schema.INT32_SCHEMA, transformed.valueSchema().field("string").schema())
-        assertEquals(33115, (transformed.value() as Struct).getInt32("string"))
+        assertEquals(Schema.INT32_SCHEMA, transformed.valueSchema().field("int32").schema())
+        assertEquals(42, (transformed.value() as Struct).getInt32("int32"))
     }
 
     @Test
     fun schemalessValueConvertField() {
-        configure(xformValue, "string:36")
+        configure(xformValue, "id:36")
         val original = mapOf(
+            "id" to "   PJV   ",
             "int32" to 42,
-            "string" to "PJV"
         )
 
         val record = SourceRecord(null, null, "test", 0, null, original)
         val transformed = xformValue.apply(record).value() as Map<*, *>
 
+        assertEquals(33115, transformed["id"])
         assertEquals(42, transformed["int32"])
-        assertEquals(33115, transformed["string"])
     }
 
     @Test
