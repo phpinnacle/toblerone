@@ -1,0 +1,12 @@
+org.phpinnacle.toblerone.TrimTransform$Key
+org.phpinnacle.toblerone.TrimTransform$Value
+org.phpinnacle.toblerone.SubstringTransform$Key
+org.phpinnacle.toblerone.SubstringTransform$Value
+org.phpinnacle.toblerone.RadixTransform$Key
+org.phpinnacle.toblerone.RadixTransform$Value
+org.phpinnacle.toblerone.InsertUuid$Key
+org.phpinnacle.toblerone.InsertUuid$Value
+org.phpinnacle.toblerone.ToggleTransform$Key
+org.phpinnacle.toblerone.ToggleTransform$Value
+org.phpinnacle.toblerone.SlugTransform$Key
+org.phpinnacle.toblerone.SlugTransform$Value

@@ -1,11 +1,7 @@
-/*
- * User Manual available at https://docs.gradle.org/7.4/userguide/building_java_projects.html
- */
-
 group = "org.phpinnacle.toblerone"
 version = System.getenv("VERSION") ?: "1.0.0"
 
-val javaVersion = 11
+val javaVersion = 17
 
 val artifactoryContext =
     project.properties.getOrDefault("artifactory_context", System.getenv("ARTIFACTORY_CONTEXT")).toString()
@@ -15,11 +11,11 @@ val artifactoryPassword =
     project.properties.getOrDefault("artifactory_password", System.getenv("ARTIFACTORY_PWD")).toString()
 
 plugins {
-    kotlin("jvm") version "1.9.22"
+    kotlin("jvm") version "1.9.25"
     idea // Generates files that are used by IntelliJ IDEA, thus making it possible to open the project from IDEA
     `java-library` // Apply the java-library plugin for API and implementation separation.
     `maven-publish`
-    id("io.gitlab.arturbosch.detekt") version "1.20.0"
+    id("io.gitlab.arturbosch.detekt") version "1.23.6"
 }
 
 repositories {
@@ -27,35 +23,53 @@ repositories {
 }
 
 dependencies {
-    val kafkaConnectVersion = "3.7.+"
-    val junitVersion = "5.8.2"
+    val kafkaConnectVersion = "3.9.0"
 
-    compileOnly(platform("org.jetbrains.kotlin:kotlin-bom"))
+    compileOnly("org.apache.kafka:connect-api:$kafkaConnectVersion")
+    compileOnly("org.apache.kafka:connect-transforms:$kafkaConnectVersion")
+    compileOnly("io.debezium:debezium-api:3.0.7.Final") {
+        exclude(group = "org.slf4j", module = "slf4j-api")
+    }
+    compileOnly("org.postgresql:postgresql:42.6.1")
+    compileOnly("com.fasterxml.jackson.core:jackson-databind:2.16.2")
 
-    implementation("org.apache.kafka:connect-api:$kafkaConnectVersion")
-    implementation("org.apache.kafka:connect-json:$kafkaConnectVersion")
-    implementation("org.apache.kafka:connect-transforms:$kafkaConnectVersion")
+    implementation("com.fasterxml.uuid:java-uuid-generator:5.1.0") {
+        exclude(group = "org.slf4j", module = "slf4j-api")
+    }
+    implementation("com.ibm.icu:icu4j:75.1")
 
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit")
-    testImplementation("org.junit.jupiter:junit-jupiter-api:$junitVersion")
+    testImplementation("org.apache.kafka:connect-runtime:$kafkaConnectVersion")
+    testImplementation(kotlin("test-junit5"))
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
+}
+
+configurations.testImplementation {
+    extendsFrom(configurations.compileOnly.get())
 }
 
 kotlin {
-    jvmToolchain {
-        (this as JavaToolchainSpec).languageVersion.set(JavaLanguageVersion.of(javaVersion))
-    }
+    jvmToolchain(javaVersion)
 }
 
 tasks {
     val fatJar = register<Jar>("fatJar") {
-        dependsOn.addAll(listOf("compileJava", "compileKotlin", "processResources"))
+        dependsOn("classes")
+        archiveClassifier.set("all")
         duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-        manifest { attributes(mapOf("Main-Class" to "org.phpinnacle.toblerone")) }
+        isPreserveFileTimestamps = false
+        isReproducibleFileOrder = true
         val sourcesMain = sourceSets.main.get()
         val contents = configurations.runtimeClasspath.get()
             .map { if (it.isDirectory) it else zipTree(it) } +
                 sourcesMain.output
         from(contents)
+    }
+    test {
+        useJUnitPlatform()
+        dependsOn(fatJar)
+        inputs.file(fatJar.flatMap { it.archiveFile })
+        systemProperty("plugin.jar", fatJar.get().archiveFile.get().asFile.absolutePath)
     }
     build {
         dependsOn(fatJar) // Trigger fat jar creation during build
