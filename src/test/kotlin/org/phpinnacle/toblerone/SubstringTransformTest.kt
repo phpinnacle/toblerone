@@ -56,6 +56,43 @@ internal class SubstringTransformTest {
     }
 
     @Test
+    fun preservesNullFieldsWithSchema() {
+        val schema = SchemaBuilder.struct()
+            .field("selected", Schema.OPTIONAL_STRING_SCHEMA)
+            .field("unselected", Schema.OPTIONAL_STRING_SCHEMA)
+            .field("string", Schema.STRING_SCHEMA)
+            .build()
+        val original = Struct(schema)
+            .put("selected", null)
+            .put("unselected", null)
+            .put("string", "string")
+        val expected = Struct(schema)
+            .put("selected", null)
+            .put("unselected", null)
+            .put("string", "str")
+        val record = SourceRecord(null, null, "test", 0, schema, original, schema, original)
+
+        configure(xformKey, "selected:0:3,string:0:3")
+        configure(xformValue, "selected:0:3,string:0:3")
+
+        assertEquals(expected, xformKey.apply(record).key())
+        assertEquals(expected, xformValue.apply(record).value())
+    }
+
+    @Test
+    fun preservesNullFieldsWithoutSchema() {
+        val original = mapOf("selected" to null, "unselected" to null, "string" to "string")
+        val expected = mapOf("selected" to null, "unselected" to null, "string" to "str")
+        val record = SourceRecord(null, null, "test", 0, null, original, null, original)
+
+        configure(xformKey, "selected:0:3,string:0:3")
+        configure(xformValue, "selected:0:3,string:0:3")
+
+        assertEquals(expected, xformKey.apply(record).key())
+        assertEquals(expected, xformValue.apply(record).value())
+    }
+
+    @Test
     fun copyValueSchemaAndDoSubstringFields() {
         configure(xformValue, "string:0:3")
 

@@ -80,7 +80,7 @@ abstract class SubstringTransform<R : ConnectRecord<R>?> : Transformation<R> {
     }
 
     @Suppress("ReturnCount")
-    private fun slice(key: String, value: Any): Any {
+    private fun slice(key: String, value: Any?): Any? {
         if (value !is String) {
             return value
         }
