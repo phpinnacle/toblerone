@@ -39,7 +39,7 @@ internal class PluginPackagingTest {
             val transformations = ServiceLoader.load(Transformation::class.java, loader).toList()
                 .filter { it.javaClass.name.startsWith("org.phpinnacle.toblerone.") }
             val expected = listOf("TrimTransform", "SubstringTransform", "RadixTransform",
-                "InsertUuid", "ToggleTransform", "SlugTransform")
+                "InsertUuid", "ToggleTransform", "BooleanToStringTransform", "StringMapTransform", "SlugTransform")
                 .flatMap { name -> listOf("$name\$Key", "$name\$Value") }
                 .map { "org.phpinnacle.toblerone.$it" }.toSet()
 
@@ -59,6 +59,10 @@ internal class PluginPackagingTest {
                 mapOf("id" to 42)))
             assertEquals(mapOf("active" to true), apply(loader, "ToggleTransform", mapOf("fields" to "active"),
                 mapOf("active" to false)))
+            assertEquals(mapOf("active" to "yes"), apply(loader, "BooleanToStringTransform",
+                mapOf("fields" to "active", "true" to "yes", "false" to "no"), mapOf("active" to true)))
+            assertEquals(mapOf("status" to "черновик"), apply(loader, "StringMapTransform",
+                mapOf("field" to "status", "mapping.draft" to "черновик"), mapOf("status" to "draft")))
             val slug = apply(loader, "SlugTransform", mapOf("input" to "name", "output" to "slug"),
                 linkedMapOf("name" to "Супер пупер товар"))
             assertEquals("super-puper-tovar", slug["slug"])

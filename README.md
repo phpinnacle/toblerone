@@ -80,6 +80,8 @@ Use `$Key` instead of `$Value` to transform record keys.
 | --- | --- | --- |
 | `InsertUuid$Value` | `fields`, `output`, optional `namespace` | Inserts a deterministic UUID v5 based on the selected fields; defaults to the URL namespace. |
 | `ToggleTransform$Value` | `fields` | Inverts the selected boolean fields. |
+| `BooleanToStringTransform$Value` | `fields`, `true`, `false` | Replaces selected boolean fields with the configured strings. |
+| `StringMapTransform$Value` | `field`, `mapping.<source>` | Replaces exact strings in one field using the configured mappings. |
 | `SlugTransform$Value` | `input`, `output`, optional `separators` | Transliterates the input to Latin and inserts a lowercase slug with hyphens. |
 
 ```json
@@ -95,6 +97,48 @@ Use `$Key` instead of `$Value` to transform record keys.
   "transforms.slug.output": "slug"
 }
 ```
+
+For example, convert `is_active` to `"yes"` or `"no"`:
+
+```json
+{
+  "transforms": "booleanToString",
+  "transforms.booleanToString.type": "org.phpinnacle.toblerone.BooleanToStringTransform$Value",
+  "transforms.booleanToString.fields": "is_active",
+  "transforms.booleanToString.true": "yes",
+  "transforms.booleanToString.false": "no"
+}
+```
+
+Both `true` and `false` settings are required; empty strings are allowed. Use a comma-separated
+`fields` list to convert multiple fields. Nulls, missing fields and non-boolean values are left
+unchanged. With a schema, converted fields become strings and retain their optional status and
+mapped default values. Like `ToggleTransform`, this transformation works on fields in a `Struct`
+or schemaless map. Use `$Key` to transform key fields.
+
+To map strings in a single field:
+
+```json
+{
+  "transforms": "map",
+  "transforms.map.type": "org.phpinnacle.toblerone.StringMapTransform$Value",
+  "transforms.map.field": "status",
+  "transforms.map.mapping.draft": "черновик",
+  "transforms.map.mapping.published": "опубликовано",
+  "transforms.map.mapping.deleted": ""
+}
+```
+
+`field` and at least one `mapping.<source>` setting are required. Each mapping value must be a
+string; empty strings are allowed as sources (`mapping.`) and replacements. Matching uses the
+entire string, is case-sensitive and preserves whitespace. Replacements are applied once.
+Unmapped strings, nulls, non-string values and missing fields are left unchanged. The original
+schema is retained. Use `$Key` to transform key fields.
+
+`CONFIG_DEF` declares `field`; dynamic `mapping.*` properties are read and validated in
+`configure()`. Kafka Connect passes these properties to the transformation, but its configuration
+schema does not list the individual mappings. Invalid mappings fail when the transformation
+is configured.
 
 ### Debezium converters
 

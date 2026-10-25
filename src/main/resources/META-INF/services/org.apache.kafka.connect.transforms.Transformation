@@ -8,5 +8,9 @@ org.phpinnacle.toblerone.InsertUuid$Key
 org.phpinnacle.toblerone.InsertUuid$Value
 org.phpinnacle.toblerone.ToggleTransform$Key
 org.phpinnacle.toblerone.ToggleTransform$Value
+org.phpinnacle.toblerone.BooleanToStringTransform$Key
+org.phpinnacle.toblerone.BooleanToStringTransform$Value
+org.phpinnacle.toblerone.StringMapTransform$Key
+org.phpinnacle.toblerone.StringMapTransform$Value
 org.phpinnacle.toblerone.SlugTransform$Key
 org.phpinnacle.toblerone.SlugTransform$Value
