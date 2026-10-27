@@ -14,3 +14,5 @@ org.phpinnacle.toblerone.StringMapTransform$Key
 org.phpinnacle.toblerone.StringMapTransform$Value
 org.phpinnacle.toblerone.SlugTransform$Key
 org.phpinnacle.toblerone.SlugTransform$Value
+org.phpinnacle.toblerone.JsonTransform$Key
+org.phpinnacle.toblerone.JsonTransform$Value

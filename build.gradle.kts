@@ -27,6 +27,7 @@ dependencies {
 
     compileOnly("org.apache.kafka:connect-api:$kafkaConnectVersion")
     compileOnly("org.apache.kafka:connect-transforms:$kafkaConnectVersion")
+    compileOnly("org.apache.kafka:connect-json:$kafkaConnectVersion")
     compileOnly("io.debezium:debezium-api:3.0.7.Final") {
         exclude(group = "org.slf4j", module = "slf4j-api")
     }

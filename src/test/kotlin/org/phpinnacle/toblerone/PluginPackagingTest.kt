@@ -2,7 +2,9 @@ package org.phpinnacle.toblerone
 
 import io.debezium.spi.converter.CustomConverter
 import io.debezium.spi.converter.RelationalColumn
+import org.apache.kafka.connect.data.Schema
 import org.apache.kafka.connect.data.SchemaBuilder
+import org.apache.kafka.connect.data.Struct
 import org.apache.kafka.connect.runtime.isolation.PluginClassLoader
 import org.apache.kafka.connect.source.SourceRecord
 import org.apache.kafka.connect.transforms.Transformation
@@ -39,7 +41,8 @@ internal class PluginPackagingTest {
             val transformations = ServiceLoader.load(Transformation::class.java, loader).toList()
                 .filter { it.javaClass.name.startsWith("org.phpinnacle.toblerone.") }
             val expected = listOf("TrimTransform", "SubstringTransform", "RadixTransform",
-                "InsertUuid", "ToggleTransform", "BooleanToStringTransform", "StringMapTransform", "SlugTransform")
+                "InsertUuid", "ToggleTransform", "BooleanToStringTransform", "StringMapTransform", "SlugTransform",
+                "JsonTransform")
                 .flatMap { name -> listOf("$name\$Key", "$name\$Value") }
                 .map { "org.phpinnacle.toblerone.$it" }.toSet()
 
@@ -63,12 +66,31 @@ internal class PluginPackagingTest {
                 mapOf("fields" to "active", "true" to "yes", "false" to "no"), mapOf("active" to true)))
             assertEquals(mapOf("status" to "черновик"), apply(loader, "StringMapTransform",
                 mapOf("field" to "status", "mapping.draft" to "черновик"), mapOf("status" to "draft")))
+            assertEquals(mapOf("data" to "{\"id\":42}"), apply(loader, "JsonTransform",
+                mapOf("fields" to "data"), mapOf("data" to mapOf("id" to 42))))
             val slug = apply(loader, "SlugTransform", mapOf("input" to "name", "output" to "slug"),
                 linkedMapOf("name" to "Супер пупер товар"))
             assertEquals("super-puper-tovar", slug["slug"])
             val uuid = apply(loader, "InsertUuid", mapOf("fields" to "name,id", "output" to "uuid"),
                 linkedMapOf("name" to "product", "id" to 42))
             assertEquals("d985c19d-45df-5445-b285-2ad3a5c233fb", uuid["uuid"])
+        }
+    }
+
+    @Test
+    @Suppress("UNCHECKED_CAST")
+    fun serializesWholeRecordsFromPackagedJar() {
+        classLoader().use { loader ->
+            val transformation = loader.loadClass("org.phpinnacle.toblerone.JsonTransform\$Value")
+                .getDeclaredConstructor().newInstance() as Transformation<SourceRecord>
+            transformation.use {
+                it.configure(emptyMap<String, String>())
+                val schema = SchemaBuilder.struct().field("id", SchemaBuilder.int32().build()).build()
+                val input = Struct(schema).put("id", 42)
+                val output = it.apply(SourceRecord(null, null, "test", 0, schema, input))
+                assertEquals("{\"id\":42}", output.value())
+                assertEquals(Schema.STRING_SCHEMA, output.valueSchema())
+            }
         }
     }
 

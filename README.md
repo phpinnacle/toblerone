@@ -32,7 +32,7 @@ The build targets the versions verified in the Alpaka cluster on 2026-10-24:
 | PostgreSQL JDBC | 42.6.1 |
 | Jackson databind | 2.16.2 |
 
-Kafka, Debezium, PostgreSQL JDBC, Jackson and SLF4J classes are supplied by the host and excluded
+Kafka (including `connect-json`), Debezium, PostgreSQL JDBC, Jackson and SLF4J classes are supplied by the host and excluded
 from the plugin JAR. Kotlin, UUID generation and ICU transliteration are bundled.
 
 ## Install
@@ -83,6 +83,7 @@ Use `$Key` instead of `$Value` to transform record keys.
 | `BooleanToStringTransform$Value` | `fields`, `true`, `false` | Replaces selected boolean fields with the configured strings. |
 | `StringMapTransform$Value` | `field`, `mapping.<source>` | Replaces exact strings in one field using the configured mappings. |
 | `SlugTransform$Value` | `input`, `output`, optional `separators` | Transliterates the input to Latin and inserts a lowercase slug with hyphens. |
+| `JsonTransform$Value` | optional `fields` | Serializes selected fields to JSON strings, or the entire value when `fields` is omitted or empty. |
 
 ```json
 {
@@ -139,6 +140,30 @@ schema is retained. Use `$Key` to transform key fields.
 `configure()`. Kafka Connect passes these properties to the transformation, but its configuration
 schema does not list the individual mappings. Invalid mappings fail when the transformation
 is configured.
+
+To serialize selected top-level fields to JSON strings:
+
+```json
+{
+  "transforms": "json",
+  "transforms.json.type": "org.phpinnacle.toblerone.JsonTransform$Value",
+  "transforms.json.fields": "payload,metadata"
+}
+```
+
+Omit `transforms.json.fields` or set it to an empty string to serialize the entire value.
+Use `JsonTransform$Key` to serialize the key instead. Both schema and schemaless records are
+supported. Selecting fields requires a Struct or map; whole-value mode also accepts scalars,
+arrays and maps. Missing selected fields are ignored, and other fields are unchanged.
+
+The result is a JSON string without a `schema`/`payload` envelope. For example, a field containing
+`{"id":42}` becomes the string `"{\"id\":42}"`; a string containing `hello` becomes the JSON
+string `"\"hello\""`. With a schema, serialized values receive a string schema; optional status
+and JSON-encoded defaults are retained for converted fields. Struct metadata and unselected
+field schemas are preserved. Null fields and null keys/values remain null, preserving tombstones.
+Nested values and logical types use Kafka Connect's standard JSON encoding, including Base64
+for bytes and the default Decimal encoding. The host must provide Kafka Connect's `connect-json`
+module, as a standard Kafka Connect installation does.
 
 ### Debezium converters
 
