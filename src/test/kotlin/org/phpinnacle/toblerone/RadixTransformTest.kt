@@ -7,6 +7,8 @@ import org.apache.kafka.connect.errors.DataException
 import org.apache.kafka.connect.source.SourceRecord
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import java.util.*
 import kotlin.test.Test
 import kotlin.test.assertNull
@@ -84,6 +86,57 @@ internal class RadixTransformTest {
 
         assertEquals(Schema.INT32_SCHEMA, transformed.valueSchema().field("int32").schema())
         assertEquals(42, (transformed.value() as Struct).getInt32("int32"))
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = [true, false])
+    fun preservesOptionalFieldsAndNulls(nullInput: Boolean) {
+        val fieldSchemas = listOf(
+            Schema.OPTIONAL_INT8_SCHEMA,
+            Schema.OPTIONAL_INT16_SCHEMA,
+            Schema.OPTIONAL_INT32_SCHEMA,
+            Schema.OPTIONAL_INT64_SCHEMA,
+            Schema.OPTIONAL_STRING_SCHEMA
+        )
+        val inputs = listOf(42.toByte(), 42.toShort(), 42, 42L, "2a")
+        val builder = SchemaBuilder.struct().optional()
+        for ((index, fieldSchema) in fieldSchemas.withIndex()) {
+            builder.field("field$index", fieldSchema)
+        }
+        val schema = builder.build()
+        val fields = fieldSchemas.indices.joinToString(",") { "field$it:16" }
+
+        for (transform in listOf(xformKey, xformValue)) {
+            configure(transform, fields)
+            val value = Struct(schema)
+            for ((index, input) in inputs.withIndex()) {
+                value.put("field$index", if (nullInput) null else input)
+            }
+            val record = SourceRecord(null, null, "test", 0, schema, value, schema, value)
+            val transformed = transform.apply(record)
+            val output = (if (transform === xformKey) transformed.key() else transformed.value()) as Struct
+
+            assertTrue(output.schema().isOptional)
+            for ((index, fieldSchema) in fieldSchemas.withIndex()) {
+                val isString = fieldSchema.type() == Schema.Type.STRING
+                val expectedSchema = if (isString) Schema.OPTIONAL_INT32_SCHEMA else Schema.OPTIONAL_STRING_SCHEMA
+                assertEquals(expectedSchema, output.schema().field("field$index").schema())
+                assertEquals(if (nullInput) null else if (isString) 42 else "2a", output.get("field$index"))
+            }
+            output.validate()
+        }
+    }
+
+    @Test
+    fun preservesSchemalessNullFields() {
+        for (transform in listOf(xformKey, xformValue)) {
+            configure(transform, "id:16")
+            val value = mapOf("id" to null, "untouched" to null)
+            val record = SourceRecord(null, null, "test", 0, null, value, null, value)
+            val transformed = transform.apply(record)
+
+            assertEquals(value, if (transform === xformKey) transformed.key() else transformed.value())
+        }
     }
 
     @Test

@@ -5,6 +5,7 @@ import org.apache.kafka.common.cache.SynchronizedCache
 import org.apache.kafka.common.config.ConfigDef
 import org.apache.kafka.connect.connector.ConnectRecord
 import org.apache.kafka.connect.data.Schema
+import org.apache.kafka.connect.data.SchemaBuilder
 import org.apache.kafka.connect.data.Struct
 import org.apache.kafka.connect.transforms.Transformation
 import org.apache.kafka.connect.transforms.util.Requirements
@@ -87,7 +88,7 @@ abstract class RadixTransform<R : ConnectRecord<R>?> : Transformation<R> {
             val name = field.name()
 
             if (name in fields.keys) {
-                outputValues.put(name, convert(name, field.schema(), value))
+                outputValues.put(name, convert(name, value.get(field)))
             } else {
                 outputValues.put(name, value.get(field))
             }
@@ -96,7 +97,7 @@ abstract class RadixTransform<R : ConnectRecord<R>?> : Transformation<R> {
         return newRecord(record, outputSchema.schema(), outputValues)
     }
 
-    private fun convert(key: String, value: Any): Any {
+    private fun convert(key: String, value: Any?): Any? {
         val radix = fields[key] ?: return value
 
         return when (value) {
@@ -104,32 +105,19 @@ abstract class RadixTransform<R : ConnectRecord<R>?> : Transformation<R> {
             is Int -> value.toString(radix)
             is Long -> value.toString(radix)
             is Short -> value.toString(radix)
-            else -> value
-        }
-    }
-
-    private fun convert(key: String, schema: Schema, value: Struct): Any {
-        val radix = fields[key] ?: return value
-
-        return when (schema.type()) {
-            Schema.Type.INT8 -> value.getInt16(key).toString(radix)
-            Schema.Type.INT16 -> value.getInt16(key).toString(radix)
-            Schema.Type.INT32 -> value.getInt32(key).toString(radix)
-            Schema.Type.INT64 -> value.getInt64(key).toString(radix)
-            Schema.Type.STRING -> value.getString(key).trim().toInt(radix)
+            is Byte -> value.toInt().toString(radix)
             else -> value
         }
     }
 
     private fun infer(schema: Schema): Schema {
-        return when (schema.type()) {
-            Schema.Type.INT8 -> Schema.STRING_SCHEMA
-            Schema.Type.INT16 -> Schema.STRING_SCHEMA
-            Schema.Type.INT32 -> Schema.STRING_SCHEMA
-            Schema.Type.INT64 -> Schema.STRING_SCHEMA
-            Schema.Type.STRING -> Schema.INT32_SCHEMA
-            else -> schema
+        val output = when (schema.type()) {
+            Schema.Type.INT8, Schema.Type.INT16, Schema.Type.INT32, Schema.Type.INT64 -> SchemaBuilder.string()
+            Schema.Type.STRING -> SchemaBuilder.int32()
+            else -> return schema
         }
+        if (schema.isOptional) output.optional()
+        return output.build()
     }
 
     private fun copySchema(schema: Schema): Schema
@@ -141,6 +129,7 @@ abstract class RadixTransform<R : ConnectRecord<R>?> : Transformation<R> {
         }
 
         val output = SchemaUtil.copySchemaBasics(schema)
+        if (schema.isOptional) output.optional()
 
         for (field in schema.fields()) {
             val name = field.name()

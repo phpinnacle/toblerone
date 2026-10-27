@@ -92,6 +92,29 @@ internal class SlugTransformTest {
     }
 
     @Test
+    fun preservesOptionalInputInSlugSchema() {
+        for (transform in listOf(xformKey, xformValue)) {
+            configure(transform)
+            val schema = SchemaBuilder.struct().optional()
+                .field("name", Schema.OPTIONAL_STRING_SCHEMA)
+                .build()
+
+            for (input in listOf(null, "Супер товар")) {
+                val value = Struct(schema).put("name", input)
+                val record = SourceRecord(null, null, "test", 0, schema, value, schema, value)
+                val transformed = transform.apply(record)
+                val output = (if (transform === xformKey) transformed.key() else transformed.value()) as Struct
+
+                assertTrue(output.schema().isOptional)
+                assertEquals(Schema.OPTIONAL_STRING_SCHEMA, output.schema().field("code").schema())
+                assertEquals(input, output.get("name"))
+                assertEquals(if (input == null) null else "super-tovar", output.get("code"))
+                output.validate()
+            }
+        }
+    }
+
+    @Test
     fun schemalessValueConvertField() {
         configure(xformValue, separators = ".")
         val original = mapOf(
