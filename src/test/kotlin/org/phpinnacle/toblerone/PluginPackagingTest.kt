@@ -44,7 +44,8 @@ internal class PluginPackagingTest {
                 "InsertUuid", "ToggleTransform", "BooleanToStringTransform", "StringMapTransform", "SlugTransform",
                 "JsonTransform")
                 .flatMap { name -> listOf("$name\$Key", "$name\$Value") }
-                .map { "org.phpinnacle.toblerone.$it" }.toSet()
+                .map { "org.phpinnacle.toblerone.$it" }.toSet() +
+                "org.phpinnacle.toblerone.DebeziumTimestampsTransform"
 
             assertEquals(expected, transformations.map { it.javaClass.name }.toSet())
             transformations.forEach { assertSame(loader, it.javaClass.classLoader) }
@@ -74,6 +75,22 @@ internal class PluginPackagingTest {
             val uuid = apply(loader, "InsertUuid", mapOf("fields" to "name,id", "output" to "uuid"),
                 linkedMapOf("name" to "product", "id" to 42))
             assertEquals("d985c19d-45df-5445-b285-2ad3a5c233fb", uuid["uuid"])
+        }
+    }
+
+    @Test
+    @Suppress("UNCHECKED_CAST")
+    fun fillsDebeziumTimestampsFromPackagedJar() {
+        classLoader().use { loader ->
+            val transformation = loader.loadClass("org.phpinnacle.toblerone.DebeziumTimestampsTransform")
+                .getDeclaredConstructor().newInstance() as Transformation<SourceRecord>
+            transformation.use {
+                it.configure(emptyMap<String, String>())
+                val input = mapOf("op" to "c", "ts_ms" to 123L, "after" to mapOf("id" to 42))
+                val output = it.apply(SourceRecord(null, null, "test", null, input)).value() as Map<*, *>
+                assertEquals(mapOf<String, Any>("id" to 42, "created_at" to 123L, "updated_at" to 123L),
+                    output["after"])
+            }
         }
     }
 

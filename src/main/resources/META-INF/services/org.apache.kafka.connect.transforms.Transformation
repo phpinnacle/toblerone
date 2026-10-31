@@ -16,3 +16,4 @@ org.phpinnacle.toblerone.SlugTransform$Key
 org.phpinnacle.toblerone.SlugTransform$Value
 org.phpinnacle.toblerone.JsonTransform$Key
 org.phpinnacle.toblerone.JsonTransform$Value
+org.phpinnacle.toblerone.DebeziumTimestampsTransform

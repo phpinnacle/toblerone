@@ -165,6 +165,47 @@ Nested values and logical types use Kafka Connect's standard JSON encoding, incl
 for bytes and the default Decimal encoding. The host must provide Kafka Connect's `connect-json`
 module, as a standard Kafka Connect installation does.
 
+### Debezium timestamp fallback
+
+`DebeziumTimestampsTransform` fills missing or null `created_at` and `updated_at` fields in
+SQL Debezium events. Configure the field names with `created.field` and `updated.field`
+(defaults: `created_at` and `updated_at`); both must be nonempty and distinct. Place it **before**
+`ExtractNewRecordState`, while the envelope still contains the operation and the `after` row:
+
+```json
+{
+  "transforms": "timestamps,unwrap",
+  "transforms.timestamps.type": "org.phpinnacle.toblerone.DebeziumTimestampsTransform",
+  "transforms.timestamps.created.field": "created_at",
+  "transforms.timestamps.updated.field": "updated_at",
+  "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState"
+}
+```
+
+| Debezium operation | Fallback for `created_at` | Fallback for `updated_at` |
+| --- | --- | --- |
+| Create (`c`) or snapshot read (`r`) | Event processing time | Event processing time |
+| Update (`u`) | No fallback | Event processing time |
+| Delete (`d`), tombstone, other events | Unchanged | Unchanged |
+
+Existing non-null values always win, including on updates. The transform does not store state:
+on update it cannot recover an absent creation time. Newly added schema fields are optional
+Kafka Connect `Timestamp` values; `created_at` stays null on updates when no value is available.
+Snapshot fallback represents the snapshot processing time, not the original row creation time.
+
+The fallback uses the envelope's top-level `ts_ms`, which Debezium defines as the connector's
+event processing time, rather than `source.ts_ms` (database change time). If `ts_ms` is null
+or absent, it uses the Connect worker's current clock. This is an approximation of ingestion
+time: a source SMT runs before publication and cannot know the broker's append time.
+See the [Debezium PostgreSQL event documentation](https://debezium.io/documentation/reference/3.0/connectors/postgresql.html#postgresql-create-events).
+
+For existing schema fields, fallback preserves Kafka Connect `Timestamp`, Debezium `Timestamp`
+(milliseconds), `MicroTimestamp` (microseconds), and `ZonedTimestamp` (UTC ISO-8601 string).
+Filling a null field of any other type fails with `DataException`, since its time format is unknown.
+Schemaless maps are also supported; their generated timestamps are epoch milliseconds.
+Keys, record metadata, tombstones and non-row events are preserved. With schemas, `before`
+and `after` retain a matching row schema; any new fields in `before` remain null.
+
 ### Debezium converters
 
 These are Debezium custom converters, configured through `converters`, rather than SMTs.
