@@ -10,6 +10,7 @@ import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertSame
+import kotlin.test.assertNull
 
 internal class InsertUuidTest {
     @Test
@@ -50,6 +51,33 @@ internal class InsertUuidTest {
         assertEquals(42, result.getInt32("id"))
         assertEquals(Schema.STRING_SCHEMA, transformed.valueSchema().field("uuid").schema())
         assertEquals("d985c19d-45df-5445-b285-2ad3a5c233fb", result.getString("uuid"))
+    }
+
+    @Test
+    fun isolatesSchemasBetweenTransformInstances() {
+        val schema = SchemaBuilder.struct().name("uuid-cache-isolation")
+            .field("name", Schema.STRING_SCHEMA)
+            .field("id", Schema.INT32_SCHEMA)
+            .build()
+        val original = Struct(schema).put("name", "product").put("id", 42)
+        val record = SourceRecord(null, null, "test", 0, schema, original, schema, original)
+
+        for (key in listOf(false, true)) {
+            val first: InsertUuid<SourceRecord> = if (key) InsertUuid.Key() else InsertUuid.Value()
+            val second: InsertUuid<SourceRecord> = if (key) InsertUuid.Key() else InsertUuid.Value()
+            first.configure(mapOf("fields" to "name,id", "output" to "first_uuid"))
+            second.configure(mapOf("fields" to "name,id", "output" to "second_uuid"))
+
+            first.apply(record)
+            val transformed = second.apply(record)
+            val output = (if (key) transformed.key() else transformed.value()) as Struct
+
+            assertNull(output.schema().field("first_uuid"))
+            assertEquals("d985c19d-45df-5445-b285-2ad3a5c233fb", output.getString("second_uuid"))
+            output.validate()
+            first.close()
+            second.close()
+        }
     }
 
     @Test

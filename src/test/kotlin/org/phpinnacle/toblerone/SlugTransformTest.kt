@@ -115,6 +115,36 @@ internal class SlugTransformTest {
     }
 
     @Test
+    fun isolatesSchemasBetweenTransformInstances() {
+        val schema = SchemaBuilder.struct()
+            .field("name", Schema.STRING_SCHEMA)
+            .field("description", Schema.OPTIONAL_STRING_SCHEMA)
+            .build()
+        val value = Struct(schema).put("name", "Первый товар").put("description", null)
+        val record = SourceRecord(null, null, "test", 0, schema, value, schema, value)
+
+        for (key in listOf(false, true)) {
+            val first: SlugTransform<SourceRecord> =
+                if (key) SlugTransform.Key() else SlugTransform.Value()
+            val second: SlugTransform<SourceRecord> =
+                if (key) SlugTransform.Key() else SlugTransform.Value()
+            configure(first, input = "name", output = "name_slug")
+            configure(second, input = "description", output = "description_slug")
+
+            first.apply(record)
+            val transformed = second.apply(record)
+            val output = (if (key) transformed.key() else transformed.value()) as Struct
+
+            assertNull(output.schema().field("name_slug"))
+            assertEquals(Schema.OPTIONAL_STRING_SCHEMA, output.schema().field("description_slug").schema())
+            assertNull(output.get("description_slug"))
+            output.validate()
+            first.close()
+            second.close()
+        }
+    }
+
+    @Test
     fun schemalessValueConvertField() {
         configure(xformValue, separators = ".")
         val original = mapOf(

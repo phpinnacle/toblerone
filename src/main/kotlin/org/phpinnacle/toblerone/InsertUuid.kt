@@ -45,11 +45,13 @@ abstract class InsertUuid<R : ConnectRecord<R>?> : Transformation<R> {
                 "UUID v5 namespace",
             )
 
-        private val cache = SynchronizedCache(LRUCache<Schema, Schema>(16))
         private val mapper = ObjectMapper()
 
+        private const val CACHE_SIZE = 16
         private const val PURPOSE = "toblerone-uuid"
     }
+
+    private val cache = SynchronizedCache(LRUCache<Schema, Schema>(CACHE_SIZE))
 
     private lateinit var _fields: List<String>
     private lateinit var _output: String

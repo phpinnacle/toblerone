@@ -43,14 +43,15 @@ abstract class SlugTransform<R : ConnectRecord<R>?> : Transformation<R> {
                 "Additional separator characters"
             )
 
-        private val cache = SynchronizedCache(LRUCache<Schema, Schema>(16))
-
         private val transliterator = Transliterator.getInstance("Any-Latin; Latin-ASCII")
         private val REGEX_CLEAN = "[^a-zA-Z0-9\\s-]".toRegex()
         private val REGEX_SEPARATOR = "[\\s-]+".toRegex()
 
+        private const val CACHE_SIZE = 16
         private const val PURPOSE = "toblerone-slug"
     }
+
+    private val cache = SynchronizedCache(LRUCache<Schema, Schema>(CACHE_SIZE))
 
     private lateinit var _input: String
     private lateinit var _output: String
