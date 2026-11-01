@@ -10,6 +10,7 @@ import org.apache.kafka.connect.source.SourceRecord
 import org.apache.kafka.connect.transforms.Transformation
 import org.postgresql.util.PGobject
 import java.io.File
+import java.math.BigDecimal
 import java.util.OptionalInt
 import java.util.Properties
 import java.util.ServiceLoader
@@ -42,7 +43,7 @@ internal class PluginPackagingTest {
                 .filter { it.javaClass.name.startsWith("org.phpinnacle.toblerone.") }
             val expected = listOf("TrimTransform", "SubstringTransform", "RadixTransform",
                 "InsertUuid", "ToggleTransform", "BooleanToStringTransform", "StringMapTransform", "SlugTransform",
-                "JsonTransform")
+                "JsonTransform", "MoneyTransform")
                 .flatMap { name -> listOf("$name\$Key", "$name\$Value") }
                 .map { "org.phpinnacle.toblerone.$it" }.toSet() +
                 "org.phpinnacle.toblerone.DebeziumTimestampsTransform"
@@ -69,6 +70,8 @@ internal class PluginPackagingTest {
                 mapOf("field" to "status", "mapping.draft" to "черновик"), mapOf("status" to "draft")))
             assertEquals(mapOf("data" to "{\"id\":42}"), apply(loader, "JsonTransform",
                 mapOf("fields" to "data"), mapOf("data" to mapOf("id" to 42))))
+            assertEquals(mapOf("amount" to 123L), apply(loader, "MoneyTransform",
+                mapOf("fields" to "amount", "currency" to "RUB"), mapOf("amount" to BigDecimal("1.2300"))))
             val slug = apply(loader, "SlugTransform", mapOf("input" to "name", "output" to "slug"),
                 linkedMapOf("name" to "Супер пупер товар"))
             assertEquals("super-puper-tovar", slug["slug"])

@@ -84,6 +84,7 @@ Use `$Key` instead of `$Value` to transform record keys.
 | `StringMapTransform$Value` | `field`, `mapping.<source>` | Replaces exact strings in one field using the configured mappings. |
 | `SlugTransform$Value` | `input`, `output`, optional `separators` | Transliterates the input to Latin and inserts a lowercase slug with hyphens. |
 | `JsonTransform$Value` | optional `fields` | Serializes selected fields to JSON strings, or the entire value when `fields` is omitted or empty. |
+| `MoneyTransform$Value` | `fields`, `currency`, optional `mode` | Converts Decimal amounts to INT64 currency minor units. |
 
 ```json
 {
@@ -164,6 +165,37 @@ field schemas are preserved. Null fields and null keys/values remain null, prese
 Nested values and logical types use Kafka Connect's standard JSON encoding, including Base64
 for bytes and the default Decimal encoding. The host must provide Kafka Connect's `connect-json`
 module, as a standard Kafka Connect installation does.
+
+### Money in minor units
+
+```json
+{
+  "transforms": "money",
+  "transforms.money.type": "org.phpinnacle.toblerone.MoneyTransform$Value",
+  "transforms.money.mode": "minor",
+  "transforms.money.fields": "amount,balance",
+  "transforms.money.currency": "RUB"
+}
+```
+
+`fields` is a required nonempty list of top-level fields. `currency` is a required, supported
+three uppercase letter ISO currency code. `mode` defaults to `minor`, currently its only accepted
+value. Use `$Key` to transform key fields. For Debezium events, apply this transform after
+`ExtractNewRecordState`, when the selected fields are at the top level.
+
+Input fields must be Kafka Connect `Decimal` (`BigDecimal`), as produced for PostgreSQL `NUMERIC`
+with Debezium's `decimal.handling.mode=precise`. Schemaless maps containing `BigDecimal` are also
+supported; strings, floating-point numbers and raw bytes are rejected. Conversion uses ICU4J's
+standard currency fraction digits, without cash rounding: RUB `1.2300` becomes `123`,
+JPY `123.0000` becomes `123`, and KWD `1.2340` becomes `1234`.
+
+Selected fields are replaced with `Long` values and `INT64` schemas. Nulls and missing fields
+are preserved, as are unselected fields and record metadata. Field optionality and converted
+defaults are retained; the Decimal logical name and its scale parameters are removed.
+Fractional minor units (e.g. RUB `1.2340`), INT64 overflow, incompatible field schemas and
+unconvertible defaults fail with `DataException`; amounts are never rounded or truncated.
+Invalid configuration fails with `ConfigException`. Currency fraction digits come from the
+bundled ICU data, so review changes to those rules when upgrading ICU.
 
 ### Debezium timestamp fallback
 
