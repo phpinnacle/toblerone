@@ -12,6 +12,7 @@ import java.util.*
 
 class UuidConverter: CustomConverter<SchemaBuilder, RelationalColumn> {
     private lateinit var columns: List<String>
+    private var zeroAsNull = false
 
     private val configDef: ConfigDef = ConfigDef()
         .define(
@@ -21,11 +22,19 @@ class UuidConverter: CustomConverter<SchemaBuilder, RelationalColumn> {
             ConfigDef.Importance.HIGH,
             "Name of columns to convert"
         )
+        .define(
+            "zero.as.null",
+            ConfigDef.Type.BOOLEAN,
+            false,
+            ConfigDef.Importance.MEDIUM,
+            "Return null for zero UUIDs and make selected columns optional"
+        )
 
     override fun configure(properties: Properties) {
         val config = SimpleConfig(configDef, properties)
 
         columns = config.getList("columns")
+        zeroAsNull = config.getBoolean("zero.as.null")
     }
 
     @Suppress("MagicNumber")
@@ -40,7 +49,7 @@ class UuidConverter: CustomConverter<SchemaBuilder, RelationalColumn> {
             .name("io.debezium.data.Uuid")
             .version(1)
 
-        if (column.isOptional) {
+        if (column.isOptional || zeroAsNull) {
             schema = schema.optional()
         }
 
@@ -77,7 +86,7 @@ class UuidConverter: CustomConverter<SchemaBuilder, RelationalColumn> {
             out += '-'
             out += raw.substring(4, 18).replace("-", "")
 
-            return out
+            return if (zeroAsNull && out == "00000000-0000-0000-0000-000000000000") null else out
         })
     }
 }

@@ -3,11 +3,17 @@ package org.phpinnacle.toblerone
 import io.debezium.spi.converter.CustomConverter.Converter
 import io.debezium.spi.converter.CustomConverter.ConverterRegistration
 import io.debezium.spi.converter.RelationalColumn
+import org.apache.kafka.common.config.ConfigException
 import org.apache.kafka.connect.data.SchemaBuilder
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
 import java.nio.ByteBuffer
 import java.util.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 
 internal class UuidConverterTest {
     private class MockRegistration<S> : ConverterRegistration<S> {
@@ -38,7 +44,43 @@ internal class UuidConverterTest {
         assertEquals("edeaf984-3ce4-11ef-856f-7cc25565172c", result)
     }
 
-    private fun getColumn(name: String): RelationalColumn {
+    @ParameterizedTest
+    @ValueSource(strings = ["default", "false", "true"])
+    fun convertsZeroUuidOnlyWhenEnabled(setting: String) {
+        val enabled = setting == "true"
+        for (optional in listOf(false, true)) {
+            val converter = UuidConverter()
+            val properties = Properties().apply {
+                setProperty("columns", "public.table.test")
+                if (setting != "default") setProperty("zero.as.null", setting)
+            }
+            converter.configure(properties)
+            val registration = MockRegistration<SchemaBuilder>()
+            converter.converterFor(getColumn("test", optional), registration)
+            val conversion = assertNotNull(registration.converter)
+            val schema = assertNotNull(registration.schema).build()
+
+            assertEquals(optional || enabled, schema.isOptional)
+            assertEquals("io.debezium.data.Uuid", schema.name())
+            assertEquals(1, schema.version())
+            assertEquals(if (enabled) null else "00000000-0000-0000-0000-000000000000",
+                conversion.convert(ByteArray(16)))
+            assertEquals("edeaf984-3ce4-11ef-856f-7cc25565172c",
+                conversion.convert(uuidToBytes(UUID.fromString("856f7cc2-5565-172c-11ef-3ce4edeaf984"))))
+            assertNull(conversion.convert(null))
+            val unselected = MockRegistration<SchemaBuilder>()
+            converter.converterFor(getColumn("other", optional), unselected)
+            assertNull(unselected.converter)
+        }
+    }
+
+    @Test
+    fun rejectsInvalidZeroAsNullSetting() {
+        val properties = Properties().apply { setProperty("zero.as.null", "yes") }
+        assertFailsWith<ConfigException> { UuidConverter().configure(properties) }
+    }
+
+    private fun getColumn(name: String, optional: Boolean = false): RelationalColumn {
         return object : RelationalColumn {
             override fun typeName(): String {
                 return "bytea"
@@ -73,7 +115,7 @@ internal class UuidConverterTest {
             }
 
             override fun isOptional(): Boolean {
-                return false
+                return optional
             }
 
             override fun hasDefaultValue(): Boolean {

@@ -247,7 +247,7 @@ They use Debezium API 3.0.7.Final and require Java 17 or later at runtime.
 | --- | --- | --- |
 | `MCharConverter` | None | Converts PostgreSQL `mchar` and `mvarchar` values to UTF-8 strings. |
 | `IntegerConverter` | `columns` | Reads the first four bytes as a big-endian 32-bit integer. |
-| `UuidConverter` | `columns` | Converts a binary UUID using the byte ordering of the source 1C data. |
+| `UuidConverter` | `columns`, optional `zero.as.null` | Converts a binary UUID using the byte ordering of the source 1C data. |
 
 `columns` is a comma-separated list of fully qualified column names (`schema.table.column`).
 For example, add these properties to a Debezium connector configuration:
@@ -262,3 +262,16 @@ For example, add these properties to a Debezium connector configuration:
   "uuid.columns": "public.products.id"
 }
 ```
+
+To convert zero UUIDs to null, enable `zero.as.null` for the UUID converter:
+
+```json
+{
+  "uuid.zero.as.null": "true"
+}
+```
+
+The setting defaults to `false`, preserving existing behavior. When enabled, decoded
+`00000000-0000-0000-0000-000000000000` values become null for all selected `uuid.columns`;
+other UUIDs and existing nulls are unchanged. Selected column schemas become optional even
+when the source columns are `NOT NULL`. Unselected columns are unaffected.
