@@ -82,6 +82,7 @@ Use `$Key` instead of `$Value` to transform record keys.
 | `ToggleTransform$Value` | `fields` | Inverts the selected boolean fields. |
 | `BooleanToStringTransform$Value` | `fields`, `true`, `false` | Replaces selected boolean fields with the configured strings. |
 | `StringMapTransform$Value` | `field`, `mapping.<source>` | Replaces exact strings in one field using the configured mappings. |
+| `EmptyStringToNullTransform$Value` | `fields`, optional `trim` | Replaces empty strings in selected fields with null. |
 | `SlugTransform$Value` | `input`, `output`, optional `separators` | Transliterates the input to Latin and inserts a lowercase slug with hyphens. |
 | `JsonTransform$Value` | optional `fields` | Serializes selected fields to JSON strings, or the entire value when `fields` is omitted or empty. |
 | `MoneyTransform$Value` | `fields`, `currency`, optional `mode` | Converts Decimal amounts to INT64 currency minor units. |
@@ -141,6 +142,27 @@ schema is retained. Use `$Key` to transform key fields.
 `configure()`. Kafka Connect passes these properties to the transformation, but its configuration
 schema does not list the individual mappings. Invalid mappings fail when the transformation
 is configured.
+
+To replace empty strings in selected top-level fields with null:
+
+```json
+{
+  "transforms": "emptyToNull",
+  "transforms.emptyToNull.type": "org.phpinnacle.toblerone.EmptyStringToNullTransform$Value",
+  "transforms.emptyToNull.fields": "name,description"
+}
+```
+
+`fields` is a required nonempty comma-separated list. By default, only the exact empty string (`""`) is
+converted; whitespace, nonempty strings, nulls, non-string values and missing fields are unchanged.
+Set `transforms.emptyToNull.trim=true` to trim leading and trailing whitespace first: `"   "`
+becomes null and `"  hello world  "` becomes `"hello world"`. Whitespace inside strings is retained.
+`trim` defaults to `false` and only affects selected fields.
+Both schemaless maps and schema-based Structs are supported; use `$Key` to transform key fields.
+Selected string schemas become optional and lose their defaults so that a resulting null is not
+replaced by a default. Required input fields still resolve their input defaults before conversion;
+optional input fields preserve explicit nulls. Other field schemas and schema metadata are retained.
+For Debezium events, apply this transform after `ExtractNewRecordState` to select row fields.
 
 To serialize selected top-level fields to JSON strings:
 

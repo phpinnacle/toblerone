@@ -43,7 +43,7 @@ internal class PluginPackagingTest {
                 .filter { it.javaClass.name.startsWith("org.phpinnacle.toblerone.") }
             val expected = listOf("TrimTransform", "SubstringTransform", "RadixTransform",
                 "InsertUuid", "ToggleTransform", "BooleanToStringTransform", "StringMapTransform", "SlugTransform",
-                "JsonTransform", "MoneyTransform")
+                "JsonTransform", "MoneyTransform", "EmptyStringToNullTransform")
                 .flatMap { name -> listOf("$name\$Key", "$name\$Value") }
                 .map { "org.phpinnacle.toblerone.$it" }.toSet() +
                 "org.phpinnacle.toblerone.DebeziumTimestampsTransform"
@@ -68,6 +68,8 @@ internal class PluginPackagingTest {
                 mapOf("fields" to "active", "true" to "yes", "false" to "no"), mapOf("active" to true)))
             assertEquals(mapOf("status" to "черновик"), apply(loader, "StringMapTransform",
                 mapOf("field" to "status", "mapping.draft" to "черновик"), mapOf("status" to "draft")))
+            assertEquals(mapOf("name" to null), apply(loader, "EmptyStringToNullTransform",
+                mapOf("fields" to "name"), mapOf("name" to "")))
             assertEquals(mapOf("data" to "{\"id\":42}"), apply(loader, "JsonTransform",
                 mapOf("fields" to "data"), mapOf("data" to mapOf("id" to 42))))
             assertEquals(mapOf("amount" to 123L), apply(loader, "MoneyTransform",

@@ -12,6 +12,8 @@ org.phpinnacle.toblerone.BooleanToStringTransform$Key
 org.phpinnacle.toblerone.BooleanToStringTransform$Value
 org.phpinnacle.toblerone.StringMapTransform$Key
 org.phpinnacle.toblerone.StringMapTransform$Value
+org.phpinnacle.toblerone.EmptyStringToNullTransform$Key
+org.phpinnacle.toblerone.EmptyStringToNullTransform$Value
 org.phpinnacle.toblerone.SlugTransform$Key
 org.phpinnacle.toblerone.SlugTransform$Value
 org.phpinnacle.toblerone.JsonTransform$Key
