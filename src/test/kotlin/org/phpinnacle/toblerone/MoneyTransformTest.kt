@@ -47,6 +47,60 @@ internal class MoneyTransformTest {
     }
 
     @ParameterizedTest
+    @CsvSource("BYN, 0.29, 29", "BYN, 19.99, 1999", "BYN, -1.23, -123", "BYN, 0.0, 0",
+        "JPY, 123.0, 123", "KWD, 1.234, 1234")
+    fun convertsDoubleAmountsUsingCurrencyDigits(currency: String, amount: Double, expected: Long) {
+        val schema = SchemaBuilder.struct().field("amount", Schema.FLOAT64_SCHEMA).build()
+        for (key in listOf(true, false)) {
+            transformation(key, config + ("currency" to currency)).use { transform ->
+                val mapOutput = targetValue(transform.apply(record(null, mapOf("amount" to amount))), key) as Map<*, *>
+                val structOutput = targetValue(transform.apply(record(schema, Struct(schema).put("amount", amount))),
+                    key) as Struct
+
+                assertEquals(expected, mapOutput["amount"])
+                assertEquals(expected, structOutput.getInt64("amount"))
+                structOutput.validate()
+            }
+        }
+    }
+
+    @Test
+    fun preservesDoubleDefaultsAndOptionalNulls() {
+        val schema = SchemaBuilder.struct()
+            .field("amount", SchemaBuilder.float64().defaultValue(0.29).build())
+            .field("balance", SchemaBuilder.float64().optional().defaultValue(1.23).build()).build()
+        transformation(false, config + ("currency" to "BYN")).use { transform ->
+            val output = transform.apply(record(schema, Struct(schema).put("balance", null))).value() as Struct
+
+            assertEquals(29L, output.getInt64("amount"))
+            assertEquals(29L, output.schema().field("amount").schema().defaultValue())
+            assertEquals(123L, output.schema().field("balance").schema().defaultValue())
+            assertNull(output.getWithoutDefault("balance"))
+            assertTrue(output.schema().field("balance").schema().isOptional)
+            output.validate()
+        }
+    }
+
+    @Test
+    fun rejectsDoubleFractionalMinorUnitsNonFiniteValuesAndOverflow() {
+        val schema = SchemaBuilder.struct().field("amount", Schema.FLOAT64_SCHEMA).build()
+        transformation(false, config + ("currency" to "BYN")).use { transform ->
+            for (amount in listOf(1.234, -1.234, 0.1 + 0.2, Double.MAX_VALUE,
+                Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY)) {
+                for (input in listOf(record(null, mapOf("amount" to amount)),
+                    record(schema, Struct(schema).put("amount", amount)))) {
+                    assertFailsWith<DataException>(amount.toString()) { transform.apply(input) }
+                }
+            }
+            val defaultSchema = SchemaBuilder.struct()
+                .field("amount", SchemaBuilder.float64().defaultValue(1.234).build()).build()
+            assertFailsWith<DataException> {
+                transform.apply(record(defaultSchema, Struct(defaultSchema).put("amount", 1.23)))
+            }
+        }
+    }
+
+    @ParameterizedTest
     @ValueSource(booleans = [true, false])
     fun preservesSchemaMetadataNullsUnselectedFieldsAndRecordMetadata(key: Boolean) {
         val schema = SchemaBuilder.struct().name("row").version(2).doc("Row")
@@ -150,9 +204,9 @@ internal class MoneyTransformTest {
     }
 
     @Test
-    fun rejectsWrongTypesAndNonDecimalSchemas() {
+    fun rejectsWrongTypesAndUnsupportedSchemas() {
         transformation(false).use { transform ->
-            for (value in listOf("1.23", 1.23, 123L, byteArrayOf(123))) {
+            for (value in listOf("1.23", 1.23f, 123L, byteArrayOf(123))) {
                 assertFailsWith<DataException> { transform.apply(record(null, mapOf("amount" to value))) }
             }
             for (fieldSchema in listOf(Schema.OPTIONAL_STRING_SCHEMA, Schema.OPTIONAL_BYTES_SCHEMA,

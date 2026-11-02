@@ -85,7 +85,7 @@ Use `$Key` instead of `$Value` to transform record keys.
 | `EmptyStringToNullTransform$Value` | `fields`, optional `trim` | Replaces empty strings in selected fields with null. |
 | `SlugTransform$Value` | `input`, `output`, optional `separators` | Transliterates the input to Latin and inserts a lowercase slug with hyphens. |
 | `JsonTransform$Value` | optional `fields` | Serializes selected fields to JSON strings, or the entire value when `fields` is omitted or empty. |
-| `MoneyTransform$Value` | `fields`, `currency`, optional `mode` | Converts Decimal amounts to INT64 currency minor units. |
+| `MoneyTransform$Value` | `fields`, `currency`, optional `mode` | Converts Decimal or FLOAT64 amounts to INT64 currency minor units. |
 
 ```json
 {
@@ -205,17 +205,21 @@ three uppercase letter ISO currency code. `mode` defaults to `minor`, currently 
 value. Use `$Key` to transform key fields. For Debezium events, apply this transform after
 `ExtractNewRecordState`, when the selected fields are at the top level.
 
-Input fields must be Kafka Connect `Decimal` (`BigDecimal`), as produced for PostgreSQL `NUMERIC`
-with Debezium's `decimal.handling.mode=precise`. Schemaless maps containing `BigDecimal` are also
-supported; strings, floating-point numbers and raw bytes are rejected. Conversion uses ICU4J's
-standard currency fraction digits, without cash rounding: RUB `1.2300` becomes `123`,
-JPY `123.0000` becomes `123`, and KWD `1.2340` becomes `1234`.
+Input fields must be Kafka Connect `Decimal` (`BigDecimal`) or `FLOAT64` (`Double`), as produced
+for PostgreSQL `NUMERIC` with Debezium's `decimal.handling.mode=precise` or `double`, respectively.
+Schemaless maps containing `BigDecimal` or `Double` are also supported; strings, integers,
+`Float` values and raw bytes are rejected. Double values use their canonical decimal string
+representation (`BigDecimal.valueOf`): BYN `0.29` becomes `29`. Precision already lost upstream
+cannot be recovered; use `precise` when the original decimal precision must be retained.
+Conversion uses ICU4J's standard currency fraction digits, without cash rounding:
+RUB `1.2300` becomes `123`, JPY `123.0000` becomes `123`, and KWD `1.2340` becomes `1234`.
 
 Selected fields are replaced with `Long` values and `INT64` schemas. Nulls and missing fields
 are preserved, as are unselected fields and record metadata. Field optionality and converted
 defaults are retained; the Decimal logical name and its scale parameters are removed.
-Fractional minor units (e.g. RUB `1.2340`), INT64 overflow, incompatible field schemas and
-unconvertible defaults fail with `DataException`; amounts are never rounded or truncated.
+Fractional minor units (e.g. RUB `1.2340` or a Double result of `0.1 + 0.2`), NaN, infinity,
+INT64 overflow, incompatible field schemas and unconvertible defaults fail with `DataException`;
+amounts are never rounded or truncated.
 Invalid configuration fails with `ConfigException`. Currency fraction digits come from the
 bundled ICU data, so review changes to those rules when upgrading ICU.
 

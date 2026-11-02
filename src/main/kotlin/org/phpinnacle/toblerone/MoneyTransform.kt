@@ -21,7 +21,7 @@ import java.math.BigDecimal
 abstract class MoneyTransform<R : ConnectRecord<R>?> : Transformation<R> {
     companion object {
         @Suppress("unused")
-        const val OVERVIEW_DOC = "Convert selected Decimal fields to integer currency minor units"
+        const val OVERVIEW_DOC = "Convert selected Decimal or FLOAT64 fields to integer currency minor units"
 
         val CONFIG_DEF: ConfigDef = ConfigDef()
             .define(
@@ -37,7 +37,7 @@ abstract class MoneyTransform<R : ConnectRecord<R>?> : Transformation<R> {
                         throw ConfigException(name, value, "Must contain at least one field and no empty names")
                     }
                 },
-                ConfigDef.Importance.HIGH, "Nonempty list of comma separated Decimal fields to convert"
+                ConfigDef.Importance.HIGH, "Nonempty list of comma separated Decimal or FLOAT64 fields to convert"
             )
             .define(
                 "currency", ConfigDef.Type.STRING, ConfigDef.NO_DEFAULT_VALUE, ConfigDef.NonNullValidator(),
@@ -96,17 +96,23 @@ abstract class MoneyTransform<R : ConnectRecord<R>?> : Transformation<R> {
 
     private fun convert(field: String, value: Any?): Any? {
         if (field !in fields || value == null) return value
-        if (value !is BigDecimal) throw DataException("$PURPOSE requires Decimal field '$field'")
+        val amount = when {
+            value is BigDecimal -> value
+            value is Double && value.isFinite() -> BigDecimal.valueOf(value)
+            else -> throw DataException("$PURPOSE requires finite Decimal or FLOAT64 field '$field'")
+        }
         return try {
-            value.movePointRight(fractionDigits).longValueExact()
+            amount.movePointRight(fractionDigits).longValueExact()
         } catch (exception: ArithmeticException) {
             throw DataException("$PURPOSE field '$field' has fractional minor units or exceeds INT64", exception)
         }
     }
 
     private fun minorSchema(field: String, schema: Schema): Schema {
-        if (schema.name() != Decimal.LOGICAL_NAME || schema.type() != Schema.Type.BYTES) {
-            throw DataException("$PURPOSE requires Decimal schema for field '$field'")
+        if (schema.type() != Schema.Type.FLOAT64 &&
+            (schema.name() != Decimal.LOGICAL_NAME || schema.type() != Schema.Type.BYTES)
+        ) {
+            throw DataException("$PURPOSE requires Decimal or FLOAT64 schema for field '$field'")
         }
         val output = SchemaBuilder.int64().doc(schema.doc())
         if (schema.isOptional) output.optional()
