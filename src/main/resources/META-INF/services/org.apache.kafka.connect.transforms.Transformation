@@ -21,3 +21,4 @@ org.phpinnacle.toblerone.JsonTransform$Value
 org.phpinnacle.toblerone.MoneyTransform$Key
 org.phpinnacle.toblerone.MoneyTransform$Value
 org.phpinnacle.toblerone.DebeziumTimestampsTransform
+org.phpinnacle.toblerone.SchemaFingerprintTransform

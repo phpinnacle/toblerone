@@ -20,6 +20,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 internal class PluginPackagingTest {
     private val pluginJar = File(System.getProperty("plugin.jar"))
@@ -46,7 +47,8 @@ internal class PluginPackagingTest {
                 "JsonTransform", "MoneyTransform", "EmptyStringToNullTransform")
                 .flatMap { name -> listOf("$name\$Key", "$name\$Value") }
                 .map { "org.phpinnacle.toblerone.$it" }.toSet() +
-                "org.phpinnacle.toblerone.DebeziumTimestampsTransform"
+                setOf("org.phpinnacle.toblerone.DebeziumTimestampsTransform",
+                    "org.phpinnacle.toblerone.SchemaFingerprintTransform")
 
             assertEquals(expected, transformations.map { it.javaClass.name }.toSet())
             transformations.forEach { assertSame(loader, it.javaClass.classLoader) }
@@ -95,6 +97,27 @@ internal class PluginPackagingTest {
                 val output = it.apply(SourceRecord(null, null, "test", null, input)).value() as Map<*, *>
                 assertEquals(mapOf<String, Any>("id" to 42, "created_at" to 123L, "updated_at" to 123L),
                     output["after"])
+            }
+        }
+    }
+
+    @Test
+    @Suppress("UNCHECKED_CAST")
+    fun fingerprintsSchemasFromPackagedJar() {
+        classLoader().use { loader ->
+            val transformation = loader.loadClass("org.phpinnacle.toblerone.SchemaFingerprintTransform")
+                .getDeclaredConstructor().newInstance() as Transformation<SourceRecord>
+            transformation.use {
+                it.configure(emptyMap<String, String>())
+                val schema = SchemaBuilder.struct().name("Customer").field("id", Schema.INT64_SCHEMA).build()
+                val input = Struct(schema).put("id", 42L)
+                val output = it.apply(SourceRecord(null, null, "test", 0, schema, input))
+
+                assertTrue(output.valueSchema().name().matches(
+                    Regex("toblerone\\.fingerprint\\.p_[0-9a-f]{64}\\.Customer")
+                ))
+                assertEquals(42L, (output.value() as Struct).getInt64("id"))
+                assertSame(output.valueSchema(), (output.value() as Struct).schema())
             }
         }
     }

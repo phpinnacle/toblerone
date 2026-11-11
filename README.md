@@ -264,6 +264,34 @@ Schemaless maps are also supported; their generated timestamps are epoch millise
 Keys, record metadata, tombstones and non-row events are preserved. With schemas, `before`
 and `after` retain a matching row schema; any new fields in `before` remain null.
 
+### Schema fingerprints
+
+`org.phpinnacle.toblerone.SchemaFingerprintTransform` prefixes each value record's original
+schema name with `toblerone.fingerprint.p_<sha256>.`. It fingerprints the complete runtime
+Connect schema, including nested fields, types, defaults, field order and metadata. Object
+properties are sorted before hashing; explicit nulls in schema defaults remain null.
+Record values do not affect the fingerprint.
+
+Place this transformation last in the source pipeline, after any schema-changing transforms.
+It has no configuration options. Original schema name suffixes remain intact, including
+Debezium's `.Envelope` suffix required by sink-side `ExtractNewRecordState`. It preserves
+explicit null fields, keys, record metadata and tombstones. Schemaless and non-record values
+pass through unchanged.
+
+```json
+{
+  "transforms": "fingerprint",
+  "transforms.fingerprint.type": "org.phpinnacle.toblerone.SchemaFingerprintTransform",
+  "value.converter": "io.confluent.connect.avro.AvroConverter",
+  "value.converter.value.subject.name.strategy": "io.confluent.kafka.serializers.subject.TopicRecordNameStrategy"
+}
+```
+
+Use the same value subject strategy on the sink converter. Distinct schemas then register
+under separate subjects within a topic, rather than competing with earlier projections.
+Key subjects remain unchanged. Existing records written under another subject strategy
+require a coordinated transition; this transformation does not rewrite stored records.
+
 ### Debezium converters
 
 These are Debezium custom converters, configured through `converters`, rather than SMTs.
