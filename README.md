@@ -101,6 +101,12 @@ Use `$Key` instead of `$Value` to transform record keys.
 }
 ```
 
+`InsertUuid` hashes selected values in the configured `fields` order, for both keys and values,
+with or without a schema. Reordering schema fields does not change the generated UUID.
+Starting with v0.0.14, schema-based records use this configured order instead of schema field
+order. Existing UUIDs change when those orders differ; coordinate consumers and stored data
+before replaying affected records. This release does not rewrite existing records.
+
 For example, convert `is_active` to `"yes"` or `"no"`:
 
 ```json

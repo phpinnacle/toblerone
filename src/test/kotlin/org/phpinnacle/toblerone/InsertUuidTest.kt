@@ -54,6 +54,40 @@ internal class InsertUuidTest {
     }
 
     @Test
+    fun usesConfiguredFieldOrderAcrossSchemasAndSchemalessRecords() {
+        val firstSchema = SchemaBuilder.struct()
+            .field("name", Schema.STRING_SCHEMA)
+            .field("id", Schema.INT32_SCHEMA)
+            .build()
+        val reversedSchema = SchemaBuilder.struct()
+            .field("id", Schema.INT32_SCHEMA)
+            .field("name", Schema.STRING_SCHEMA)
+            .build()
+        val first = Struct(firstSchema).put("name", "product").put("id", 42)
+        val reversed = Struct(reversedSchema).put("name", "product").put("id", 42)
+        val records = listOf(
+            SourceRecord(null, null, "test", 0, firstSchema, first, reversedSchema, reversed),
+            SourceRecord(null, null, "test", 0, reversedSchema, reversed, firstSchema, first),
+            SourceRecord(null, null, "test", 0, null, mapOf("id" to 42, "name" to "product"),
+                null, mapOf("name" to "product", "id" to 42))
+        )
+
+        for (key in listOf(false, true)) {
+            val transform: InsertUuid<SourceRecord> = if (key) InsertUuid.Key() else InsertUuid.Value()
+            transform.configure(mapOf("fields" to "name,id", "output" to "uuid"))
+
+            for (record in records) {
+                val transformed = transform.apply(record)
+                val output = if (key) transformed.key() else transformed.value()
+                val uuid = if (output is Struct) output.getString("uuid") else (output as Map<*, *>)["uuid"]
+
+                assertEquals("d985c19d-45df-5445-b285-2ad3a5c233fb", uuid)
+            }
+            transform.close()
+        }
+    }
+
+    @Test
     fun isolatesSchemasBetweenTransformInstances() {
         val schema = SchemaBuilder.struct().name("uuid-cache-isolation")
             .field("name", Schema.STRING_SCHEMA)

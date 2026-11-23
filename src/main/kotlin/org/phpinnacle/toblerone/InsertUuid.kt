@@ -115,11 +115,13 @@ abstract class InsertUuid<R : ConnectRecord<R>?> : Transformation<R> {
         val outputSchema = copySchema(schema)
         val outputValue = Struct(outputSchema)
 
-        for (field in schema.fields()) {
-            if (_fields.contains(field.name())) {
+        for (field in _fields) {
+            if (schema.field(field) != null) {
                 bytes.addAll(convert(value.get(field)))
             }
+        }
 
+        for (field in schema.fields()) {
             outputValue.put(field.name(), value.get(field))
         }
 
